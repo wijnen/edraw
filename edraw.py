@@ -80,7 +80,7 @@ class Schematic: # {{{
 			rawnum = length / r + balance[0]
 			num = round(rawnum)
 			balance[0] = rawnum - num
-			wire.charge = [(n + .5) / num for n in range(num)]
+			wire.charge = [((n + .5) / num, num_charges + n) for n in range(num)]
 			return num
 		# }}}
 		for w in self.wires:
@@ -120,20 +120,29 @@ class Schematic: # {{{
 					wire.length = sum((B[c] - A[c]) ** 2 for c in range(2)) ** .5
 					wire.num_per_wire = wire.length / r
 					wires_per_s = wire.computed_I / wire.num_per_wire
-					# TODO: adjust speed for wire population.
 					wire.wires_per_frame = wires_per_s / fps
 					#debug('speed', wire.name, wire.wires_per_frame)
 					if wire.wires_per_frame == 0:
 						return
 					new_charges = []
-					for pos in wire.charge:
+					for i, (pos, n) in enumerate(wire.charge):
+						# adjust speed for wire population.
+						if 0 < i < len(wire.charge) - 1:
+							mid = (wire.charge[i - 1][0] + wire.charge[i + 1][0]) / 2
+						elif i == 0 and len(wire.charge) == 2:
+							mid = max(0, wire.charge[1][0] - r)
+						elif i == 1 and len(wire.charge) == 2:
+							mid = min(1, wire.charge[0][0] + r)
+						else:
+							mid = pos
+						pos += (mid - pos) / 4
 						target_charge = pos + wire.wires_per_frame
 						if target_charge < 0:
-							wire.terminal[0].pending.append(-target_charge / wire.wires_per_frame)
+							wire.terminal[0].pending.append((-target_charge / wire.wires_per_frame, n))
 						elif target_charge >= 1:
-							wire.terminal[1].pending.append((target_charge - 1) / wire.wires_per_frame)
+							wire.terminal[1].pending.append(((target_charge - 1) / wire.wires_per_frame, n))
 						else:
-							new_charges.append(target_charge)
+							new_charges.append((target_charge, n))
 					wire.charge = new_charges
 				for wire in self.wires.values():
 					handle_wire(wire)
@@ -145,32 +154,32 @@ class Schematic: # {{{
 					for terminal in self.terminals.values():
 						terminal.pending.sort()
 						while len(terminal.pending) > 0:
-							charge = terminal.pending.pop()
+							charge, n = terminal.pending.pop()
 							wire = max(terminal.connection.values(), key = lambda x: x.hunger(terminal))
 							target_charge = charge * wire.wires_per_frame
 							if wire.terminal[0] is terminal:
 								if len(wire.charge) == 0:
 									if target_charge >= wire.length:
-										wire.get_other(terminal).pending.append((target_charge - 1) / wire.wires_per_frame)
+										wire.get_other(terminal).pending.append(((target_charge - 1) / wire.wires_per_frame), n)
 										must_run = True
 									else:
-										wire.charge.append(target_charge)
-								elif wire.charge[0] <= target_charge:
-									wire.charge.insert(0, wire.charge[0] * .9)
+										wire.charge.append((target_charge, n))
+								elif wire.charge[0][0] <= target_charge:
+									wire.charge.insert(0, (wire.charge[0][0] * .9, n))
 								else:
-									wire.charge.insert(0, target_charge)
+									wire.charge.insert(0, (target_charge, n))
 							else:
 								assert wire.terminal[1] is terminal
 								if len(wire.charge) == 0:
 									if target_charge >= 1:
-										wire.get_other(terminal).pending.append((target_charge - 1) / wire.wires_per_frame)
+										wire.get_other(terminal).pending.append(((target_charge - 1) / wire.wires_per_frame, n))
 										must_run = True
 									else:
-										wire.charge.append(1 - target_charge)
-								elif wire.charge[-1] >= 1 - target_charge:
-									wire.charge.append(1 - (1 - wire.charge[-1]) * .9)
+										wire.charge.append((1 - target_charge, n))
+								elif wire.charge[-1][0] >= 1 - target_charge:
+									wire.charge.append((1 - (1 - wire.charge[-1][0]) * .9, n))
 								else:
-									wire.charge.append(1 - target_charge)
+									wire.charge.append((1 - target_charge, n))
 				# }}}
 				# Write output. {{{
 				dirname = os.path.dirname(path.format(0))
@@ -660,9 +669,9 @@ class Schematic: # {{{
 		for w in self.wires:
 			wire = self.wires[w]
 			A, B = [self.getanim(t.position) for t in wire.terminal]
-			for c in wire.charge:
+			for c, n in wire.charge:
 				pos = [A[t] + c * (B[t] - A[t]) for t in range(2)]
-				ret += '<circle cx="{}" cy="{}" r=".2" stroke="none" fill="#00f8"/>'.format(pos[0], pos[1])
+				ret += '<circle cx="{}" cy="{}" r=".1" stroke="none" fill="{}"/>'.format(pos[0], pos[1], '#0f08' if n % 10 == 0 else '#00f8')
 		border = 1
 		w = bbox[1][0] - bbox[0][0] + 2 * border
 		h = bbox[1][1] - bbox[0][1] + 2 * border
@@ -959,7 +968,7 @@ class Battery(Dipole): # {{{
 	size = (2, 2)
 	def svg_shape(self): # {{{
 		pos = self.schematic.getanim(self.position)
-		return '<path d="M{},{}v1m.4,-1.5v2m0,-1h.8m-2,0h.8"/>'.format(pos[0] - .2, pos[1] - .5)
+		return '<path d="M{},{}v2m.4,-1.5v1m0,-.5h.8m-2,0h.8"/>'.format(pos[0] - .2, pos[1] - 1)
 	# }}}
 # }}}
 
