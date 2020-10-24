@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+
+import edraw
+
+edraw.Wire.debug = True
+
+s = edraw.Schematic()
+
+batt = s.Add(edraw.Battery, (4, 7), U = 12)
+meter = s.Add(edraw.Ameter, (0, 4), angle = -90)
+R = s.Add(edraw.Resistor, (4, 2), R = 3)
+lamp = s.Add(edraw.Lamp, (4, 0), R = 3)
+switch = s.Add(edraw.Switch, (8, 4), angle = 90, open = lambda t: t >= 5)
+
+s.Wire(batt[0], (0, 7), meter[0])
+split = s.Wire(meter[1], (0, 1), (1, 1), (1, 2), R[0])[1]
+s.Wire(split, (1, 0), lamp[0])
+join = s.Wire(R[1], (7, 2), (7, 1), (8, 1), switch[0])[1]
+s.Wire(lamp[1], (7, 0), join)
+s.Wire(switch[1], (8, 7), batt[1])
+
+s.current_time = 6
+s.compute()
+open('/tmp/one.svg', 'w').write(s.svg())
+s.animate(10, '/tmp/anim.mp4', fps = 30)
