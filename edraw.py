@@ -893,7 +893,7 @@ class Component: # {{{
 class Dipole(Component): # {{{
 	'''Component with one wire and two terminals'''
 	name = 'Dipole'
-	def __init__(self, schematic, position, angle, I = None, U = None, V = None, R = None): # {{{
+	def __init__(self, schematic, position, angle, I = None, U = None, V = None, R = None, draw_I = False, draw_U = False, digits = None): # {{{
 		Component.__init__(self, schematic, position, angle)
 		self.terminal = [schematic.Terminal(self.terminal_pos((offset * self.size[0] / 2, 0))) for offset in (-1, 1)]
 		schematic.Wire(*self.terminal)
@@ -908,9 +908,9 @@ class Dipole(Component): # {{{
 		for t, terminal in enumerate(self.terminal):
 			terminal.component = (self, t)
 		self.terminal[1].V = V
-		self.draw_I = True
-		self.draw_U = True
-		self.digits = None
+		self.draw_I = draw_I
+		self.draw_U = draw_U
+		self.digits = digits
 	# }}}
 	def get_other(self, terminal): # {{{
 		if terminal is self.terminal[0]:
@@ -1026,7 +1026,10 @@ class Resistor(Dipole): # {{{
 	typename = 'Resistor'
 	size = (3, 1)
 	def __init__(self, *args, **kwargs): # {{{
-		self.draw_R = True
+		if 'draw_R' in kwargs:
+			self.draw_R = kwargs.pop('draw_R')
+		else:
+			self.draw_R = True
 		Dipole.__init__(self, *args, **kwargs)
 	# }}}
 	def svg_shape(self): # {{{
@@ -1077,11 +1080,13 @@ class Ameter(Meter): # {{{
 	typename = 'Ameter'
 	symbol = 'A'
 	def __init__(self, *args, **kwargs): # {{{
-		kwargs['U'] = 0
-		kwargs['R'] = 0
+		if 'U' not in kwargs:
+			kwargs['U'] = 0
+		if 'R' not in kwargs:
+			kwargs['R'] = 0
+		if 'draw_I' not in kwargs:
+			kwargs['draw_I'] = True
 		Dipole.__init__(self, *args, **kwargs)
-		self.draw_I = True
-		self.draw_U = False
 	# }}}
 # }}}
 
@@ -1089,10 +1094,11 @@ class Vmeter(Meter): # {{{
 	typename = 'Vmeter'
 	symbol = 'V'
 	def __init__(self, *args, **kwargs): # {{{
-		kwargs['I']= 0
+		if 'I' not in kwargs:
+			kwargs['I']= 0
+		if 'draw_U' not in kwargs:
+			kwargs['draw_U'] = True
 		Dipole.__init__(self, *args, **kwargs)
-		self.draw_I = False
-		self.draw_U = True
 	# }}}
 # }}}
 
